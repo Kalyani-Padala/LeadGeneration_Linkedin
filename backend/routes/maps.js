@@ -9,7 +9,12 @@ export const mapsRouter = Router();
 const activeRuns = new Map(); // clientRunId -> { cancelled, apifyRunIds, apifyKey }
 
 function send(res, event, data) {
-  res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  if (res.writableEnded || res.destroyed) return;
+  try {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  } catch {
+    // Socket may have closed between the check and the write — ignore.
+  }
 }
 
 // ── Get country code from country name ────────────────────────────────
@@ -103,7 +108,13 @@ mapsRouter.post('/scrape', async (req, res) => {
   const ctx = { cancelled: false, apifyRunIds: new Set(), apifyKey };
   activeRuns.set(clientRunId, ctx);
 
-  req.on('close', () => { ctx.cancelled = true; });
+  // Detect real client disconnect via the RESPONSE stream — not `req`,
+  // which fires `close` as soon as express.json() finishes reading the
+  // body (before this handler runs), causing false cancellations.
+  let completed = false;
+  res.on('close', () => {
+    if (!completed) ctx.cancelled = true;
+  });
 
   const allLeads = [];
 
@@ -230,6 +241,7 @@ mapsRouter.post('/scrape', async (req, res) => {
   } catch (err) {
     send(res, 'error', { message: err.message });
   } finally {
+    completed = true;
     activeRuns.delete(clientRunId);
     res.end();
   }
