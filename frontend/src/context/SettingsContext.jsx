@@ -105,6 +105,16 @@ export function SettingsProvider({ children }) {
     } catch { return []; }
   });
   const [activeMapsRunId, setActiveMapsRunId] = useState(null);
+  const [mapsStatus, setMapsStatus] = useState('idle');
+  const [mapsLogs, setMapsLogs] = useState([]);
+
+  function addMapsLog(msg, type = 'info') {
+    setMapsLogs(prev => [...prev.slice(-99), {
+      time: new Date().toLocaleTimeString(),
+      msg,
+      type,
+    }]);
+  }
 
   // Maps searches config
   const [mapsSearches, setMapsSearchesState] = useState(() => {
@@ -398,6 +408,11 @@ function deleteRun(runId) {
         deleteMapsRun,
         mapsSearches,
         setMapsSearches,
+        mapsStatus,
+        setMapsStatus,
+        mapsLogs,
+        setMapsLogs,
+        addMapsLog,
 
         // Pipeline runtime (persists across navigation)
         pipelineStatus,

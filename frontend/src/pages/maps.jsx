@@ -9,11 +9,14 @@ export default function Maps() {
     mapsRuns, activeMapsRunId, setActiveMapsRunId,
     addMapsRun, addLeadToMapsRun, completeMapsRun, deleteMapsRun,
     mapsSearches, setMapsSearches,
+    mapsStatus: status, setMapsStatus: setStatus,
+    mapsLogs: logs, setMapsLogs: setLogs,
+    addMapsLog: addLog,
   } = useSettings();
 
-  const [activeTab, setActiveTab] = useState('CONFIG');
-  const [status, setStatus] = useState('idle');
-  const [logs, setLogs] = useState([]);
+  // Default to LEADS when a scrape is already running so a returning
+  // user lands on results, not the empty config form.
+  const [activeTab, setActiveTab] = useState(() => status === 'running' ? 'LEADS' : 'CONFIG');
   const [logOpen, setLogOpen] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [maxResults, setMaxResults] = useState(20);
@@ -36,14 +39,6 @@ export default function Maps() {
     || mapsRuns[mapsRuns.length - 1];
   const leads = activeRun?.leads || [];
   const totalAllLeads = mapsRuns.reduce((s, r) => s + r.leads.length, 0);
-
-  function addLog(msg, type = 'info') {
-    setLogs(prev => [...prev.slice(-99), {
-      time: new Date().toLocaleTimeString(),
-      msg,
-      type,
-    }]);
-  }
 
   async function loadZips() {
   if (!country.trim() || !city.trim()) return;
