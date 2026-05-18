@@ -58,7 +58,7 @@ export default function Maps() {
     const zipRes = await fetch(`/api/maps/zipcodes?city=${encodeURIComponent(city.trim())}&countryCode=${countryData.code}`);
     const zipData = await zipRes.json();
     setResolvedZips(zipData.zips || []);
-    setSelectedZips(zipData.zips || []);
+    setSelectedZips([]);
   } catch { }
   finally { setLoadingZips(false); }
 }
@@ -331,26 +331,25 @@ function addSearch() {
                       </div>
                     </div>
 
-                    {/* ZIP selector — appears automatically after city filled */}
+                    {/* ZIP selector — single-select to keep the search fast */}
                     {resolvedZips.length > 0 && (
                       <div style={{ marginBottom: 16 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)', letterSpacing: '0.1em' }}>SELECT ZIP CODES</span>
-                          <button onClick={() => setSelectedZips(resolvedZips)} style={{ background: 'none', color: 'var(--accent)', fontSize: 10, fontFamily: 'var(--font-mono)', cursor: 'pointer', padding: '1px 6px', border: '1px solid rgba(0,229,160,0.3)', borderRadius: 4 }}>ALL</button>
-                          <button onClick={() => setSelectedZips([])} style={{ background: 'none', color: 'var(--text3)', fontSize: 10, fontFamily: 'var(--font-mono)', cursor: 'pointer', padding: '1px 6px', border: '1px solid var(--border)', borderRadius: 4 }}>NONE</button>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)', letterSpacing: '0.1em' }}>SELECT ONE ZIP / PINCODE</span>
+                          <button onClick={() => setSelectedZips([])} style={{ background: 'none', color: 'var(--text3)', fontSize: 10, fontFamily: 'var(--font-mono)', cursor: 'pointer', padding: '1px 6px', border: '1px solid var(--border)', borderRadius: 4 }}>CLEAR</button>
                           <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)' }}>
-                            {selectedZips.length} selected — up to <strong style={{ color: 'var(--accent)' }}>{selectedZips.length * maxResults}</strong> results
+                            {selectedZips.length === 1
+                              ? <>1 selected — up to <strong style={{ color: 'var(--accent)' }}>{maxResults}</strong> results</>
+                              : <>none selected — city-wide search, up to <strong style={{ color: 'var(--accent)' }}>{maxResults}</strong> results</>}
                           </span>
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                           {resolvedZips.map(zip => {
-                            const isSelected = selectedZips.includes(zip);
+                            const isSelected = selectedZips[0] === zip;
                             return (
                               <button
                                 key={zip}
-                                onClick={() => setSelectedZips(prev =>
-                                  isSelected ? prev.filter(z => z !== zip) : [...prev, zip]
-                                )}
+                                onClick={() => setSelectedZips(isSelected ? [] : [zip])}
                                 style={{
                                   padding: '4px 10px',
                                   borderRadius: 20,
