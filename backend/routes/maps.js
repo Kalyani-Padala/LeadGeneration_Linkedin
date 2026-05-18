@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { runMapsScrape } from '../services/apify-maps.js';
 
 export const mapsRouter = Router();
 
@@ -76,6 +77,11 @@ mapsRouter.get('/zipcodes', async (req, res) => {
 });
 
 // ── Run Google Maps scrape ────────────────────────────────────────────
+//
+// Async Apify pattern: start a run, poll status (streaming live progress
+// back to the client via SSE), fetch the dataset on success. If the
+// client disconnects, the in-flight Apify run is aborted so we don't
+// burn credits on results no one will see.
 mapsRouter.post('/scrape', async (req, res) => {
   const { searches, apifyKey, maxResults = 20 } = req.body;
 
@@ -87,12 +93,17 @@ mapsRouter.post('/scrape', async (req, res) => {
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
+  let cancelled = false;
+  req.on('close', () => { cancelled = true; });
+
   const allLeads = [];
 
   try {
     send(res, 'start', { total: searches.length });
 
     for (let si = 0; si < searches.length; si++) {
+      if (cancelled) break;
+
       const search = searches[si];
       const { business, city, countryCode, zips } = search;
       let cityLeadCount = 0;
@@ -112,30 +123,46 @@ mapsRouter.post('/scrape', async (req, res) => {
       });
 
       for (const task of tasks) {
+        if (cancelled) break;
+
         try {
-          send(res, 'progress', { message: `Scraping: ${task.query}` });
-
-          const apifyRes = await fetch(
-            `https://api.apify.com/v2/acts/compass~crawler-google-places/run-sync-get-dataset-items?token=${apifyKey}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                searchStringsArray: [task.query],
+          let result;
+          try {
+            result = await runMapsScrape(
+              apifyKey,
+              {
+                searchStringsArray:        [task.query],
                 maxCrawledPlacesPerSearch: maxResults,
-                language: 'en',
-                countryCode: countryCode.toLowerCase(),
-              }),
-              signal: AbortSignal.timeout(120000),
-            }
-          );
-
-          if (!apifyRes.ok) {
-            send(res, 'warning', { message: `Apify failed for "${task.query}": ${apifyRes.status}` });
+                language:                  'en',
+                countryCode:               countryCode.toLowerCase(),
+              },
+              {
+                isCancelled: () => cancelled,
+                onProgress: (update) => {
+                  if (update.stage === 'started') {
+                    send(res, 'progress', { message: `Started Apify run for "${task.query}" (id ${update.runId})` });
+                  } else if (update.stage === 'running') {
+                    send(res, 'progress', {
+                      message: `Apify [${task.query}]: ${update.itemCount} places scraped — ${update.runtimeSecs}s elapsed (${update.status})`,
+                      itemCount:   update.itemCount,
+                      runtimeSecs: update.runtimeSecs,
+                    });
+                  } else if (update.stage === 'poll-error') {
+                    send(res, 'warning', { message: `Apify poll error: ${update.message}` });
+                  } else if (update.stage === 'done') {
+                    send(res, 'progress', { message: `Apify finished for "${task.query}" — ${update.itemCount} raw results in ${update.runtimeSecs}s` });
+                  }
+                },
+              }
+            );
+          } catch (err) {
+            // `Cancelled by client` is benign — fall through to outer loop break.
+            if (cancelled) break;
+            send(res, 'warning', { message: `Error for "${task.query}": ${err.message}` });
             continue;
           }
 
-          const results = await apifyRes.json();
+          const results = result.items || [];
 
           for (const d of results) {
             if (cityLeadCount >= maxResults) break;
@@ -164,13 +191,14 @@ mapsRouter.post('/scrape', async (req, res) => {
             send(res, 'lead', lead);
             cityLeadCount++;
           }
+
           if (cityLeadCount >= maxResults) {
             send(res, 'progress', { message: `City limit reached for ${city} — ${cityLeadCount} leads` });
             break;
-            }
+          }
 
           send(res, 'progress', {
-            message: `Found ${results.length} results, ${allLeads.length} qualified leads so far`,
+            message: `Kept ${cityLeadCount} leads from "${task.query}" (filtered to those with phone or email). Total so far: ${allLeads.length}`,
           });
 
         } catch (err) {
@@ -179,10 +207,14 @@ mapsRouter.post('/scrape', async (req, res) => {
       }
     }
 
-    send(res, 'complete', {
-      totalLeads: allLeads.length,
-      message: `Complete — ${allLeads.length} leads found`,
-    });
+    if (cancelled) {
+      send(res, 'warning', { message: 'Scrape cancelled — client disconnected' });
+    } else {
+      send(res, 'complete', {
+        totalLeads: allLeads.length,
+        message: `Complete — ${allLeads.length} leads found`,
+      });
+    }
 
   } catch (err) {
     send(res, 'error', { message: err.message });
