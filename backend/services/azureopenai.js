@@ -13,7 +13,7 @@ function getClient() {
 }
 
 // Round 1 — exactly matching n8n prompt
-export async function screenComments(postContent, comments) {
+export async function screenComments(postContent, comments, signal) {
   const client = getClient();
 
   const postContext = (postContent || 'business technology discussion')
@@ -86,7 +86,7 @@ If none qualify return: []`;
     messages: [{ role: 'user', content: prompt }],
     max_tokens: 800,
     temperature: 0.2,
-  });
+  }, { signal });
 
   const raw = response.choices[0]?.message?.content || '[]';
   const clean = raw.replace(/```json|```/g, '').trim();
@@ -99,7 +99,7 @@ If none qualify return: []`;
 }
 
 // Round 2 — exactly matching n8n prompt
-export async function deepQualify(leadData) {
+export async function deepQualify(leadData, signal) {
   const client = getClient();
 
   const {
@@ -191,7 +191,7 @@ Respond ONLY with JSON (no explanation, no markdown):
     messages: [{ role: 'user', content: prompt }],
     max_tokens: 500,
     temperature: 0.2,
-  });
+  }, { signal });
 
   const raw = response.choices[0]?.message?.content || '{}';
   const clean = raw.replace(/```json|```/g, '').trim();

@@ -1,6 +1,6 @@
 const APOLLO_BASE = 'https://api.apollo.io';
 
-async function apolloRequest(endpoint, method = 'GET', body = null, apiKey) {
+async function apolloRequest(endpoint, method = 'GET', body = null, apiKey, signal) {
   if (!apiKey) throw new Error('Apollo API key is missing');
 
   const options = {
@@ -9,6 +9,7 @@ async function apolloRequest(endpoint, method = 'GET', body = null, apiKey) {
       'Content-Type': 'application/json',
       'X-Api-Key': apiKey,
     },
+    signal,
   };
   if (body) options.body = JSON.stringify(body);
 
@@ -61,7 +62,7 @@ function splitName(full) {
 // Prefers LinkedIn URL (highest match accuracy), falls back to name + company.
 // On free / no-credit accounts, `email` may be locked — caller can read
 // `emailLocked` to surface this in the UI.
-export async function matchPerson({ linkedinUrl, name, firstName, lastName, organizationName, domain }, apolloKey) {
+export async function matchPerson({ linkedinUrl, name, firstName, lastName, organizationName, domain }, apolloKey, signal) {
   if (!firstName && !lastName && name) {
     ({ firstName, lastName } = splitName(name));
   }
@@ -81,7 +82,7 @@ export async function matchPerson({ linkedinUrl, name, firstName, lastName, orga
     return null;
   }
 
-  const data = await apolloRequest('/api/v1/people/match', 'POST', body, apolloKey);
+  const data = await apolloRequest('/api/v1/people/match', 'POST', body, apolloKey, signal);
   const person = data?.person;
   if (!person) return null;
 

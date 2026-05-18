@@ -6,28 +6,61 @@ import {
   searchCompany,
   getCompanyDetails,
 } from '../services/connectsafely.js';
-import { screenComments, deepQualify } from '../services/azureOpenAI.js';
+import { screenComments, deepQualify } from '../services/azureopenai.js';
 import { matchPerson } from '../services/apollo.js';
 
 export const pipelineRouter = Router();
 
 const runResults = new Map();
 
+// In-flight pipeline sessions keyed by the frontend's clientRunId.
+// Lets POST /stop find and abort the run an SSE handler is processing.
+const activeRuns = new Map();
+
 function send(res, event, data) {
-  res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  if (res.writableEnded || res.destroyed) return;
+  try {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  } catch {
+    // Socket may have closed between the check and the write — ignore.
+  }
+}
+
+// Throw a benign error so the outer loop unwinds without sending
+// `error` events for what is actually user-initiated cancellation.
+function bailIfCancelled(ctx) {
+  if (ctx.cancelled) throw new Error('Cancelled by client');
 }
 
 pipelineRouter.post('/run', async (req, res) => {
-  const { connectSafelyKey, accountId, keywords, pipelineSettings = {}, apolloKey } = req.body;
+  const { connectSafelyKey, accountId, keywords, pipelineSettings = {}, apolloKey, clientRunId } = req.body;
 
   if (!connectSafelyKey || !accountId || !keywords?.length) {
     return res.status(400).json({ error: 'Missing connectSafelyKey, accountId, or keywords' });
   }
+  if (!clientRunId) return res.status(400).json({ error: 'clientRunId required' });
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
+
+  // Single AbortController whose signal is threaded into every external
+  // network call (ConnectSafely, OpenAI, Apollo). Aborting it short-
+  // circuits in-flight requests so we stop burning credits the instant
+  // the user clicks STOP or disconnects.
+  const controller = new AbortController();
+  const ctx = { cancelled: false, controller };
+  activeRuns.set(clientRunId, ctx);
+  const { signal } = controller;
+
+  let completed = false;
+  res.on('close', () => {
+    if (!completed) {
+      ctx.cancelled = true;
+      controller.abort();
+    }
+  });
 
   const runId = `run_${Date.now()}`;
   const allLeads = [];
@@ -48,15 +81,17 @@ pipelineRouter.post('/run', async (req, res) => {
     });
 
     for (let ki = 0; ki < keywords.length; ki += POST_BATCH) {
+      bailIfCancelled(ctx);
       const batch = keywords.slice(ki, ki + POST_BATCH);
 
       const results = await Promise.all(
         batch.map(async ({ keyword }) => {
           try {
-            const result = await searchPosts(keyword, accountId, connectSafelyKey, pipelineSettings);
+            const result = await searchPosts(keyword, accountId, connectSafelyKey, pipelineSettings, signal);
             const posts = result?.posts || result?.data || [];
             return { keyword, posts };
           } catch (err) {
+            if (ctx.cancelled) return { keyword, posts: [] };
             send(res, 'warning', { message: `Keyword "${keyword}" failed: ${err.message}` });
             return { keyword, posts: [] };
           }
@@ -99,13 +134,14 @@ pipelineRouter.post('/run', async (req, res) => {
     });
 
     for (let pi = 0; pi < allPosts.length; pi += COMMENT_BATCH) {
+      bailIfCancelled(ctx);
       const batch = allPosts.slice(pi, pi + COMMENT_BATCH);
 
       const results = await Promise.all(
         batch.map(async post => {
           const postUrl = post.url || post.postUrl;
           try {
-            const result = await getComments(postUrl, accountId, connectSafelyKey, pipelineSettings);
+            const result = await getComments(postUrl, accountId, connectSafelyKey, pipelineSettings, signal);
             const comments = result?.comments || result?.data || [];
             return { post, postUrl, comments };
           } catch {
@@ -151,14 +187,16 @@ pipelineRouter.post('/run', async (req, res) => {
     });
 
     for (const postData of postsWithComments) {
+      bailIfCancelled(ctx);
       const { postUrl, postContent, comments } = postData;
       const CHUNK = 10;
 
       for (let ci = 0; ci < comments.length; ci += CHUNK) {
+        bailIfCancelled(ctx);
         const chunk = comments.slice(ci, ci + CHUNK);
 
         try {
-          const results = await screenComments(postContent, chunk);
+          const results = await screenComments(postContent, chunk, signal);
 
           for (const r of results) {
             if (r.authorName && r.intentLevel && r.intentLevel !== 'HIDDEN') {
@@ -183,6 +221,7 @@ pipelineRouter.post('/run', async (req, res) => {
             }
           }
         } catch (err) {
+          if (ctx.cancelled) throw err;
           send(res, 'warning', { message: `AI screen error: ${err.message}` });
         }
 
@@ -232,6 +271,7 @@ pipelineRouter.post('/run', async (req, res) => {
     });
 
     for (let li = 0; li < dedupedLeads.length; li += ENRICH_BATCH) {
+      bailIfCancelled(ctx);
       const batch = dedupedLeads.slice(li, li + ENRICH_BATCH);
 
       send(res, 'progress', {
@@ -247,7 +287,7 @@ pipelineRouter.post('/run', async (req, res) => {
           let profile = {}, experience = [], company = {};
 
           try {
-            const profileData = await getProfile(profileId, accountId, connectSafelyKey);
+            const profileData = await getProfile(profileId, accountId, connectSafelyKey, signal);
             profile = profileData?.profile || profileData || {};
             experience = profileData?.experience || profile?.experience || [];
           } catch { }
@@ -256,11 +296,11 @@ pipelineRouter.post('/run', async (req, res) => {
 
           if (companyName) {
             try {
-              const companySearch = await searchCompany(companyName, accountId, connectSafelyKey);
+              const companySearch = await searchCompany(companyName, accountId, connectSafelyKey, signal);
               const companies = companySearch?.companies || companySearch?.data || [];
               const firstCompany = companies[0];
               if (firstCompany?.companyId) {
-                const details = await getCompanyDetails(firstCompany.companyId, accountId, connectSafelyKey);
+                const details = await getCompanyDetails(firstCompany.companyId, accountId, connectSafelyKey, signal);
                 company = {
                   ...(details?.company || details || {}),
                   followerCount: firstCompany.followerCount || 0,
@@ -286,6 +326,7 @@ pipelineRouter.post('/run', async (req, res) => {
     });
 
     for (let li = 0; li < enriched.length; li++) {
+      bailIfCancelled(ctx);
       const lead = enriched[li];
 
       send(res, 'progress', {
@@ -296,7 +337,7 @@ pipelineRouter.post('/run', async (req, res) => {
       });
 
       try {
-        const result = await deepQualify(lead);
+        const result = await deepQualify(lead, signal);
 
         if (result.isQualifiedLead && result.confidenceScore >= (pipelineSettings.minScore || 6)) {
           const currentExp = (lead.experience || [])[0] || {};
@@ -347,7 +388,7 @@ pipelineRouter.post('/run', async (req, res) => {
                 domain:           qualifiedLead.companyWebsite
                                     ? qualifiedLead.companyWebsite.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0]
                                     : undefined,
-              }, apolloKey);
+              }, apolloKey, signal);
 
               if (enrich) {
                 qualifiedLead.email          = enrich.email;
@@ -358,6 +399,7 @@ pipelineRouter.post('/run', async (req, res) => {
                 qualifiedLead.apolloPersonId = enrich.apolloPersonId;
               }
             } catch (err) {
+              if (ctx.cancelled) throw err;
               send(res, 'warning', { message: `Apollo enrich failed for ${qualifiedLead.commenterName}: ${err.message}` });
             }
           }
@@ -375,6 +417,7 @@ pipelineRouter.post('/run', async (req, res) => {
           }
         }
       } catch (err) {
+        if (ctx.cancelled) throw err;
         send(res, 'warning', { message: `AI qualify error for ${lead.commenterName}: ${err.message}` });
       }
     }
@@ -392,10 +435,29 @@ pipelineRouter.post('/run', async (req, res) => {
     });
 
   } catch (err) {
-    send(res, 'error', { message: err.message });
+    if (ctx.cancelled) {
+      send(res, 'warning', { message: 'Pipeline cancelled' });
+    } else {
+      send(res, 'error', { message: err.message });
+    }
   } finally {
+    completed = true;
+    activeRuns.delete(clientRunId);
     res.end();
   }
+});
+
+// ── Stop an in-flight pipeline ────────────────────────────────────────
+pipelineRouter.post('/stop', (req, res) => {
+  const { clientRunId } = req.body || {};
+  if (!clientRunId) return res.status(400).json({ error: 'clientRunId required' });
+
+  const ctx = activeRuns.get(clientRunId);
+  if (!ctx) return res.json({ ok: true, message: 'No active run' });
+
+  ctx.cancelled = true;
+  ctx.controller.abort();
+  res.json({ ok: true });
 });
 
 pipelineRouter.get('/results/:runId', (req, res) => {

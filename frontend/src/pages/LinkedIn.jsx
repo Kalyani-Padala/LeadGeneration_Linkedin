@@ -117,7 +117,7 @@ export default function LinkedIn() {
       const res = await fetch('/api/pipeline/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ connectSafelyKey, accountId, keywords, pipelineSettings, apolloKey }),
+        body: JSON.stringify({ connectSafelyKey, accountId, keywords, pipelineSettings, apolloKey, clientRunId: newRunId }),
         signal: controller.signal,
       });
 
@@ -172,10 +172,24 @@ export default function LinkedIn() {
     }
   }
 
-  function stopPipeline() {
-    abortRef.current?.abort();
+  async function stopPipeline() {
+    addLog('Stopping pipeline…', 'warn');
     setStatus('idle');
-    addLog('Pipeline stopped by user', 'warn');
+    if (activeRunId) completeRun(activeRunId);
+    if (activeRunId) {
+      try {
+        await fetch('/api/pipeline/stop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ clientRunId: activeRunId }),
+        });
+        addLog('Stop acknowledged — backend aborted', 'warn');
+      } catch (err) {
+        addLog(`Stop failed: ${err.message}`, 'error');
+      }
+    }
+    // Also abort the local fetch so the SSE reader unwinds immediately.
+    abortRef.current?.abort();
   }
 
   async function downloadExcel(runsToExport, filename, exportType = 'single') {

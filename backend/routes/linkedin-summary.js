@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { runPhantom } from '../services/phantombuster.js';
-import { generateSummary } from '../services/azureOpenAI.js';
+import { generateSummary } from '../services/azureopenai.js';
 
 export const summaryRouter = Router();
 
