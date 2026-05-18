@@ -29,6 +29,7 @@ export default function Maps() {
   const [resolvedZips, setResolvedZips] = useState([]);
   const [resolvedCountry, setResolvedCountry] = useState(null);
   const [loadingZips, setLoadingZips] = useState(false);
+  const [manualZip, setManualZip] = useState('');
 
   // Active run
   const activeRun = mapsRuns.find(r => r.runId === activeMapsRunId)
@@ -65,14 +66,18 @@ export default function Maps() {
 
 function addSearch() {
   if (!business.trim() || !resolvedCountry) return;
+  // Manual ZIP wins over the suggested-chip selection. Empty = city-wide.
+  const finalZips = manualZip.trim()
+    ? [manualZip.trim()]
+    : selectedZips;
   const newSearch = {
     id: Date.now(),
     business: business.trim(),
     country: resolvedCountry.name,
     countryCode: resolvedCountry.code,
     city: city.trim(),
-    zips: selectedZips,
-    fallback: resolvedZips.length === 0,
+    zips: finalZips,
+    fallback: finalZips.length === 0,
   };
   setMapsSearches([...mapsSearches, newSearch]);
   setBusiness('');
@@ -81,6 +86,7 @@ function addSearch() {
   setResolvedZips([]);
   setSelectedZips([]);
   setResolvedCountry(null);
+  setManualZip('');
   setResolveError('');
 }
 
@@ -277,6 +283,18 @@ function addSearch() {
             <div style={{ flex: 1, overflow: 'auto', padding: '32px 40px' }}>
               <div style={{ maxWidth: 900 }}>
 
+                {/* How it works */}
+                <div style={{ background: 'rgba(0,229,160,0.04)', border: '1px solid rgba(0,229,160,0.2)', borderRadius: 'var(--radius-lg)', marginBottom: 24, padding: '16px 24px' }}>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.12em', color: 'var(--accent)', marginBottom: 10 }}>ℹ  HOW IT WORKS</div>
+                  <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.7, color: 'var(--text2)' }}>
+                    <li>Fill in <strong style={{ color: 'var(--text)' }}>business type</strong>, <strong style={{ color: 'var(--text)' }}>country</strong>, and <strong style={{ color: 'var(--text)' }}>city</strong>.</li>
+                    <li>Optional — narrow to one area: type a <strong style={{ color: 'var(--text)' }}>ZIP / pincode</strong> yourself, or pick one from the suggested chips below the form (US works best, other countries may not show suggestions).</li>
+                    <li>Leave the ZIP empty to search the whole city.</li>
+                    <li>Click <strong style={{ color: 'var(--text)' }}>+ ADD SEARCH</strong> to queue it. Add as many as you want.</li>
+                    <li>Hit <strong style={{ color: 'var(--text)' }}>RUN SCRAPER</strong> — we scrape Google Maps via Apify and only keep listings that have a phone or email.</li>
+                  </ol>
+                </div>
+
                 {/* Max results setting */}
                 <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', marginBottom: 24, overflow: 'hidden' }}>
                   <div style={{ padding: '14px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
@@ -295,7 +313,7 @@ function addSearch() {
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.12em', color: 'var(--text3)' }}>ADD SEARCH</span>
                   </div>
                   <div style={{ padding: '20px 24px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr 1fr 1fr', gap: 16, marginBottom: 16 }}>
                       <div>
                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)', marginBottom: 6, letterSpacing: '0.1em' }}>BUSINESS TYPE</div>
                         <input
@@ -309,7 +327,7 @@ function addSearch() {
                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)', marginBottom: 6, letterSpacing: '0.1em' }}>COUNTRY</div>
                         <input
                           value={country}
-                          onChange={e => { setCountry(e.target.value); setResolvedCountry(null); setResolvedZips([]); setSelectedZips([]); }}
+                          onChange={e => { setCountry(e.target.value); setResolvedCountry(null); setResolvedZips([]); setSelectedZips([]); setManualZip(''); }}
                           placeholder="e.g. United States"
                           style={inputStyle}
                         />
@@ -318,7 +336,7 @@ function addSearch() {
                         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)', marginBottom: 6, letterSpacing: '0.1em' }}>CITY</div>
                         <input
                           value={city}
-                          onChange={e => { setCity(e.target.value); setResolvedCountry(null); setResolvedZips([]); setSelectedZips([]); }}
+                          onChange={e => { setCity(e.target.value); setResolvedCountry(null); setResolvedZips([]); setSelectedZips([]); setManualZip(''); }}
                           onBlur={loadZips}
                           placeholder="e.g. Seattle"
                           style={inputStyle}
@@ -328,6 +346,15 @@ function addSearch() {
                             <span style={{ animation: 'spin 0.8s linear infinite', display: 'inline-block' }}>↻</span> Loading ZIP codes...
                           </div>
                         )}
+                      </div>
+                      <div>
+                        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)', marginBottom: 6, letterSpacing: '0.1em' }}>ZIP / PINCODE <span style={{ color: 'var(--text3)', fontWeight: 400, textTransform: 'lowercase', letterSpacing: 0 }}>(optional)</span></div>
+                        <input
+                          value={manualZip}
+                          onChange={e => { setManualZip(e.target.value); if (e.target.value.trim()) setSelectedZips([]); }}
+                          placeholder="e.g. 98101"
+                          style={inputStyle}
+                        />
                       </div>
                     </div>
 
@@ -349,7 +376,7 @@ function addSearch() {
                             return (
                               <button
                                 key={zip}
-                                onClick={() => setSelectedZips(isSelected ? [] : [zip])}
+                                onClick={() => { setSelectedZips(isSelected ? [] : [zip]); setManualZip(''); }}
                                 style={{
                                   padding: '4px 10px',
                                   borderRadius: 20,
@@ -371,9 +398,9 @@ function addSearch() {
                       </div>
                     )}
 
-                    {resolvedZips.length === 0 && resolvedCountry && !loadingZips && (
-                      <div style={{ marginBottom: 12, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--warn)' }}>
-                        ⚠ No ZIP codes found — will search by city name only
+                    {resolvedZips.length === 0 && resolvedCountry && !loadingZips && !manualZip.trim() && (
+                      <div style={{ marginBottom: 12, fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text3)' }}>
+                        No ZIP suggestions for this city — type one in the ZIP field above, or leave empty to search city-wide.
                       </div>
                     )}
 
@@ -385,11 +412,11 @@ function addSearch() {
 
                     <button
                       onClick={addSearch}
-                      disabled={!business.trim() || !resolvedCountry || (resolvedZips.length > 0 && selectedZips.length === 0)}
+                      disabled={!business.trim() || !resolvedCountry}
                       style={{
                         padding: '9px 20px',
-                        background: (!business.trim() || !resolvedCountry || (resolvedZips.length > 0 && selectedZips.length === 0)) ? 'var(--surface2)' : 'var(--accent)',
-                        color: (!business.trim() || !resolvedCountry || (resolvedZips.length > 0 && selectedZips.length === 0)) ? 'var(--text3)' : '#000',
+                        background: (!business.trim() || !resolvedCountry) ? 'var(--surface2)' : 'var(--accent)',
+                        color: (!business.trim() || !resolvedCountry) ? 'var(--text3)' : '#000',
                         fontWeight: 700, fontSize: 13, borderRadius: 'var(--radius)',
                         cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8,
                       }}
