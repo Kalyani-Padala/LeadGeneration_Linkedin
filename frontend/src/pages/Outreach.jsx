@@ -336,6 +336,7 @@ export default function Outreach() {
                       <input type="range" min={1} max={10} step={1} value={scoreInput} onChange={e => setScoreInput(e.target.value)} style={{ flex: 1, accentColor: 'var(--accent)' }} />
                       <span style={{ fontFamily: 'var(--font-mono)', fontSize: 16, fontWeight: 700, color: 'var(--accent)', width: 24 }}>{scoreInput}</span>
                     </div>
+                    <ScoreRubric current={Number(scoreInput)} />
                   </ConfigField>
                   <ConfigField label="TARGET LOCATIONS" hint="Comma separated countries or regions" style={{ marginTop: 20 }}>
                     <input type="text" value={locationsInput} onChange={e => setLocationsInput(e.target.value)} placeholder="United States, United Kingdom, Canada" style={inputStyle} />
@@ -576,6 +577,37 @@ export default function Outreach() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Mirrors the rubric the AI scorer uses server-side. When the user
+// drags the slider the matching tier highlights so they can see what
+// they're filtering for instead of guessing what "7" means.
+const SCORE_TIERS = [
+  { range: [1, 3],  label: 'Weak fit',     desc: 'Wrong industry / size / outside audience' },
+  { range: [4, 5],  label: 'Borderline',   desc: 'Some signal but several mismatches' },
+  { range: [6, 7],  label: 'Decent fit',   desc: 'Matches ICP on industry OR size' },
+  { range: [8, 9],  label: 'Strong fit',   desc: 'Matches on industry AND size AND audience' },
+  { range: [10, 10],label: 'Perfect fit',  desc: 'Textbook customer' },
+];
+
+function ScoreRubric({ current }) {
+  return (
+    <div style={{ marginTop: 10, padding: '10px 12px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontFamily: 'var(--font-mono)', fontSize: 10, lineHeight: 1.6 }}>
+      <div style={{ color: 'var(--text3)', letterSpacing: '0.1em', marginBottom: 6 }}>SCORING RUBRIC</div>
+      {SCORE_TIERS.map(({ range, label, desc }) => {
+        const isActive = current >= range[0] && current <= range[1];
+        const isThresholdOrAbove = current <= range[1];
+        return (
+          <div key={label} style={{ display: 'flex', gap: 10, padding: '3px 0', color: isActive ? 'var(--accent)' : isThresholdOrAbove ? 'var(--text2)' : 'var(--text3)', opacity: isActive ? 1 : isThresholdOrAbove ? 0.85 : 0.5 }}>
+            <span style={{ width: 32, fontWeight: 700 }}>{range[0] === range[1] ? `${range[0]}` : `${range[0]}–${range[1]}`}</span>
+            <span style={{ width: 90, fontWeight: 700 }}>{label}</span>
+            <span style={{ fontWeight: 400 }}>{desc}</span>
+          </div>
+        );
+      })}
+      <div style={{ marginTop: 6, color: 'var(--text3)' }}>Threshold = <strong style={{ color: 'var(--accent)' }}>{current}</strong> → keep companies scoring {current} or higher. Recommended starting point: <strong>7</strong>.</div>
     </div>
   );
 }

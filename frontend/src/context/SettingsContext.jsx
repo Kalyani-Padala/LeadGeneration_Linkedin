@@ -197,11 +197,25 @@ const [activeRunId, setActiveRunId] = useState(null);
 const [targetLocations, setTargetLocationsState] = useState(
   localStorage.getItem('targetLocations') || 'United States'
 );
+// Apollo's `organization_num_employees_ranges` expects comma-separated
+// numeric ranges (e.g. "11,50"), not the old letter codes (A-H) this
+// app started with. Migrate any legacy values left in localStorage.
+const LEGACY_RANGE_MAP = {
+  A: '1,10',     B: '11,50',     C: '51,200',     D: '201,500',
+  E: '501,1000', F: '1001,5000', G: '5001,10000', H: '10001',
+};
+const DEFAULT_EMPLOYEE_RANGES = ['11,50', '51,200', '201,500'];
+
 const [employeeRanges, setEmployeeRangesState] = useState(() => {
   try {
     const stored = localStorage.getItem('employeeRanges');
-    return stored ? JSON.parse(stored) : ['B', 'C', 'D'];
-  } catch { return ['B', 'C', 'D']; }
+    if (!stored) return DEFAULT_EMPLOYEE_RANGES;
+    const parsed = JSON.parse(stored);
+    const migrated = parsed
+      .map(v => LEGACY_RANGE_MAP[v] || v)
+      .filter(v => /^\d+(,\d+)?$/.test(v));
+    return migrated.length ? migrated : DEFAULT_EMPLOYEE_RANGES;
+  } catch { return DEFAULT_EMPLOYEE_RANGES; }
 });
 
 function setTargetLocations(v) { setTargetLocationsState(v); localStorage.setItem('targetLocations', v); }

@@ -49,10 +49,17 @@ Employees: ${companyData.num_employees || 'Unknown'}
 Location: ${companyData.hq_location || 'Unknown'}
 Website: ${companyData.website_url || 'Unknown'}
 
-Score from 0-10 how good a fit this company is. Return ONLY JSON, no markdown:
+SCORING RUBRIC — use the WHOLE range, do NOT cluster around 7:
+1-3  Weak fit. Wrong industry, wrong size, or clearly outside the audience.
+4-5  Borderline. Some matching signal but several important mismatches.
+6-7  Decent fit. Matches ICP on industry OR size — plausibly a buyer.
+8-9  Strong fit. Matches on industry AND size AND audience description.
+10   Perfect fit. Looks like the textbook customer described above.
+
+Score from 0-10. Return ONLY JSON, no markdown:
 {
   "score": 8,
-  "reason": "one line explanation"
+  "reason": "one line explanation citing which ICP criteria matched"
 }`,
   }], 200, signal);
 
