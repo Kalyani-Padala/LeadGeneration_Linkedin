@@ -180,7 +180,7 @@ All on branch `claude/review-repo-improvements-OZNzR`.
 | `8467418` | Outreach: lock down keyword extraction + hard-disqualify industry mismatch  | The AI keyword extractor hallucinated revenue criteria from "retail and manufacturing" and dropped the actual industries. Tightened the prompt (no inventing, examples, temp 0) and added explicit industry-mismatch disqualification rules to the scorer. Superseded by `0988b66`. |
 | `0988b66` | Outreach: deterministic Apollo search — drop AI keyword + AI score          | User correctly pointed out the whole AI-keyword + AI-scoring approach was wrong for the Apollo flow. Replaced with structured Apollo filters: industry multi-select, tech-stack multi-select (Apollo technology UIDs), location, employee size. No more `cleanSearchQuery` or `scoreCompany` call from `/discover`. |
 | `75fc801` | HANDOFF.md: bring up to date through 0988b66                                | Doc-only. Established the convention that HANDOFF.md is updated every commit, refreshed sections affected by the deterministic Apollo work.                                                                       |
-| _next_    | server: bump express.json() body limit to 25 MB                             | Default 100 KB tripped on Outreach FIND CONTACTS (sends the discovered-companies array) producing `PayloadTooLargeError: request entity too large`. Raised limit so larger lead lists and Excel exports go through. |
+| `821e132` | server: raise express.json() body limit to 25 MB                            | Default 100 KB tripped on Outreach FIND CONTACTS (sends the discovered-companies array) producing `PayloadTooLargeError: request entity too large`. Raised limit so larger lead lists and Excel exports go through. |
 
 ---
 
