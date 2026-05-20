@@ -182,7 +182,7 @@ All on branch `claude/review-repo-improvements-OZNzR`.
 | `75fc801` | HANDOFF.md: bring up to date through 0988b66                                | Doc-only. Established the convention that HANDOFF.md is updated every commit, refreshed sections affected by the deterministic Apollo work.                                                                       |
 | `821e132` | server: raise express.json() body limit to 25 MB                            | Default 100 KB tripped on Outreach FIND CONTACTS (sends the discovered-companies array) producing `PayloadTooLargeError: request entity too large`. Raised limit so larger lead lists and Excel exports go through. |
 | `3b54adb` | HANDOFF.md: backfill 821e132 hash in commit table                           | Doc-only.                                                                                                                                                                                                          |
-| _next_    | Outreach: post-filter Apollo results by actual industry                     | Selecting "Retail" still surfaced WSJ, Bloomberg, CNN, Jobot — Apollo's `q_organization_keyword_tags` matches marketing copy, not industry classification. Added `INDUSTRY_SYNONYMS` map and post-filter against `company.industry` field. Band-aid until we have verified Apollo industry tag IDs. |
+| `cf6f8d0` | Outreach: post-filter Apollo results by actual industry                     | Selecting "Retail" still surfaced WSJ, Bloomberg, CNN, Jobot — Apollo's `q_organization_keyword_tags` matches marketing copy, not industry classification. Added `INDUSTRY_SYNONYMS` map and post-filter against `company.industry` field. Band-aid until we have verified Apollo industry tag IDs. |
 
 ---
 
