@@ -483,19 +483,9 @@ export default function Outreach() {
                                 <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                                     {lead.linkedin && (
-                                      <a
-                                        href={lead.linkedin}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent)', padding: '3px 8px', border: '1px solid rgba(0,229,160,0.3)', borderRadius: 4 }}
-                                      >LI</a>
+                                      <a href={lead.linkedin} target="_blank" rel="noreferrer"
+                                        style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent)', padding: '3px 8px', border: '1px solid rgba(0,229,160,0.3)', borderRadius: 4 }}>LI</a>
                                     )}
-                                    <SummaryButton
-                                      profileUrl={lead.linkedin || ''}
-                                      name={`${lead.firstName} ${lead.lastName}`}
-                                      expanded={expandedLead === i}
-                                      onToggle={() => setExpandedLead(expandedLead === i ? null : i)}
-                                    />
                                   </div>
                                 </td>
                               </tr>

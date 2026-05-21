@@ -4,12 +4,14 @@ import LinkedIn from "./pages/LinkedIn";
 import Settings from "./pages/Settings";
 import Outreach from "./pages/Outreach";
 import Maps from "./pages/Maps";
+import Lookup from "./pages/Lookup";
 
 const NAV_ITEMS = [
-  { to: "/",         label: "LinkedIn",  icon: "in" },
-  { to: "/outreach", label: "Apollo",  icon: "🎯" },
-  { to: "/maps",     label: "Maps",      icon: "🗺" },
-  { to: "/settings", label: "Settings",  icon: "⚙" },
+  { to: "/",        label: "LinkedIn", icon: "in" },
+  { to: "/outreach",label: "Apollo",   icon: "🎯" },
+  { to: "/maps",    label: "Maps",     icon: "🗺"  },
+  { to: "/lookup",  label: "Lookup",   icon: "🔍" },
+  { to: "/settings",label: "Settings", icon: "⚙"  },
 ];
 
 function Sidebar() {
@@ -102,10 +104,11 @@ function App() {
         <Sidebar />
         <div style={{ flex: 1, overflow: "auto" }}>
           <Routes>
-            <Route path="/"         element={<LinkedIn />} />
-            <Route path="/outreach" element={<Outreach />} />
-            <Route path="/maps"     element={<Maps />} />
-            <Route path="/settings" element={<Settings />} />
+            <Route path="/"         element={<LinkedIn />}  />
+            <Route path="/outreach" element={<Outreach />}  />
+            <Route path="/lookup"    element={<Lookup />}     />
+            <Route path="/maps"     element={<Maps />}      />
+            <Route path="/settings" element={<Settings />}  />
           </Routes>
         </div>
       </div>

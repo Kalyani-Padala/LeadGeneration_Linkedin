@@ -652,18 +652,6 @@ function LeadRow({ lead }) {
               <InfoBlock title="SOURCE">
                 <Row k="Keyword" v={lead.keyword} />
               </InfoBlock>
-
-              {/* GET SUMMARY button — inside expanded area at the bottom */}
-              <div style={{ gridColumn: '1 / -1', paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-                <div onClick={e => e.stopPropagation()}>
-                  <SummaryButton
-                    profileUrl={lead.profileUrl}
-                    name={lead.commenterName}
-                    expanded={summaryOpen}
-                    onToggle={() => setSummaryOpen(v => !v)}
-                  />
-                </div>
-              </div>
             </div>
           </td>
         </tr>
