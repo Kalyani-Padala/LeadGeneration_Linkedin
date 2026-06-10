@@ -302,7 +302,7 @@ function addSearch() {
                   <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, letterSpacing: '0.12em', color: 'var(--accent)', marginBottom: 10 }}>ℹ  HOW IT WORKS</div>
                   <ol style={{ margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.7, color: 'var(--text2)' }}>
                     <li>Fill in <strong style={{ color: 'var(--text)' }}>business type</strong>, <strong style={{ color: 'var(--text)' }}>country</strong>, and <strong style={{ color: 'var(--text)' }}>city</strong>.</li>
-                    <li>Optional — narrow to one area: type a <strong style={{ color: 'var(--text)' }}>ZIP / pincode</strong> yourself, or pick one from the suggested chips below the form (US works best, other countries may not show suggestions).</li>
+                    <li> Narrow to one area: type a <strong style={{ color: 'var(--text)' }}>ZIP / pincode</strong> yourself, or pick one from the suggested chips below the form (US works best, other countries may not show suggestions).</li>
                     <li>Leave the ZIP empty to search the whole city.</li>
                     <li>Click <strong style={{ color: 'var(--text)' }}>+ ADD SEARCH</strong> to queue it. Add as many as you want.</li>
                     <li>Hit <strong style={{ color: 'var(--text)' }}>RUN SCRAPER</strong> — we scrape Google Maps via Apify and only keep listings that have a phone or email.</li>

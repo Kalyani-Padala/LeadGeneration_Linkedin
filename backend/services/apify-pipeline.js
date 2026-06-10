@@ -90,7 +90,7 @@ async function callActor(endpoint, payload, apiKey, timeoutMs = 240000) {
 
 async function runAptMarble(profileUrl, apiKey) {
   console.log('[apify] Actor 1: apt_marble → basic profile + activity...');
-  const data = first(await callActor(EP.apt, { profileUrl }, apiKey));
+  const data = first(await callActor(EP.apt, { profileUrls: [profileUrl] }, apiKey));
   if (data) {
     console.log(`[apify]   ✅ ${data.fullName} | ${(data.recentActivity || []).length} activity items`);
   }
