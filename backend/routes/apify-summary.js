@@ -32,8 +32,14 @@ apifySummaryRouter.post('/profile', async (req, res) => {
   try {
     console.log(`[apify-summary] Starting pipeline for ${profileUrl}`);
 
+    const routeStart = Date.now();
+
     const record  = await runApifyPipeline(profileUrl, token);
+    console.log(`[apify-summary] ⏱ Apify pipeline stage: ${((Date.now() - routeStart) / 1000).toFixed(1)}s`);
+    const llmStart = Date.now();
     const summary = await generateApifySummary(record);
+    console.log(`[apify-summary] ⏱ LLM stage: ${((Date.now() - llmStart) / 1000).toFixed(1)}s`);
+    console.log(`[apify-summary] ⏱ Total route time: ${((Date.now() - routeStart) / 1000).toFixed(1)}s`);
 
     const identity   = record.identity     || {};
     const career     = record.career       || {};

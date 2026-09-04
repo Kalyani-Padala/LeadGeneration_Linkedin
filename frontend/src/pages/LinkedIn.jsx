@@ -58,7 +58,7 @@ export default function LinkedIn() {
   const [newKeyword, setNewKeyword] = useState('');
   const [edited, setEdited] = useState(false);
   const [settingsSaved, setSettingsSaved] = useState(false);
-  const [filter, setFilter] = useState({ intent: 'all', minScore: 0, search: '' });
+  const [filter, setFilter] = useState({ intent: 'all', minScore: 0, search: '', industry: 'all' });
   const [exporting, setExporting] = useState(false);
   const [sortBy, setSortBy] = useState('confidenceScore');
   const [sortDir, setSortDir] = useState('desc');
@@ -160,7 +160,12 @@ export default function LinkedIn() {
             else if (event === 'progress') { setProgress(payload); if (payload.message) addLog(payload.message); }
             else if (event === 'lead') { addLeadToRun(newRunId, payload); addLog(`✓ ${payload.commenterName} @ ${payload.currentCompany}`, 'success'); }
             else if (event === 'warning') addLog(`⚠ ${payload.message}`, 'warn');
-            else if (event === 'complete') { setStatus('done'); completeRun(newRunId); addLog(`Complete — ${payload.totalLeads} leads`, 'success'); }
+            else if (event === 'complete') {
+              setStatus('done');
+              completeRun(newRunId);
+              addLog(`Complete — ${payload.totalLeads} leads (${(payload.totalMs / 1000).toFixed(1)}s total)`, 'success');
+              if (payload.breakdown) addLog(`Timing — ${payload.breakdown}`, 'info');
+            }            
             else if (event === 'error') { setStatus('error'); addLog(`Error: ${payload.message}`, 'error'); }
           } catch { }
         }
@@ -214,9 +219,12 @@ export default function LinkedIn() {
     }
   }
 
+const industries = [...new Set(leads.map(l => l.companyIndustry).filter(Boolean))].sort();
+
   const displayLeads = leads
     .filter(l => {
       if (filter.intent !== 'all' && l.intentLevel !== filter.intent) return false;
+      if (filter.industry !== 'all' && l.companyIndustry !== filter.industry) return false;
       if (l.confidenceScore < filter.minScore) return false;
       if (filter.search) {
         const q = filter.search.toLowerCase();
@@ -465,6 +473,12 @@ export default function LinkedIn() {
                             {v === 'all' ? 'ALL INTENT' : v.toUpperCase()}
                             </button>
                         ))}
+                        <select value={filter.industry} onChange={e => setFilter(f => ({ ...f, industry: e.target.value }))} style={{ padding: '5px 10px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text2)', fontSize: 11, fontFamily: 'var(--font-mono)', cursor: 'pointer', maxWidth: 160 }}>
+                            <option value="all">ALL INDUSTRIES</option>
+                            {industries.map(ind => (
+                            <option key={ind} value={ind}>{ind}</option>
+                            ))}
+                        </select>
                         <select value={filter.minScore} onChange={e => setFilter(f => ({ ...f, minScore: Number(e.target.value) }))} style={{ padding: '5px 10px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text2)', fontSize: 11, fontFamily: 'var(--font-mono)', cursor: 'pointer' }}>
                             <option value={0}>MIN SCORE: ANY</option>
                             <option value={6}>MIN SCORE: 6+</option>
