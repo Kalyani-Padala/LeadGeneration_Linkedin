@@ -6,7 +6,25 @@
 
 const BASE_URL = 'https://api.connectsafely.ai';
 
-async function csRequest(endpoint, body, apiKey, signal) {
+// ConnectSafely rate-limits to ~1 request per 3s PER ACCOUNT. All calls
+// share this queue so concurrent pipeline batches don't 429 each other.
+let queue = Promise.resolve();
+const MIN_GAP_MS = 3200; // slightly above 3s for safety margin
+let lastCallAt = 0;
+
+function throttle() {
+  const run = queue.then(async () => {
+    const wait = Math.max(0, lastCallAt + MIN_GAP_MS - Date.now());
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    lastCallAt = Date.now();
+  });
+  queue = run.catch(() => {}); // don't let one failure break the chain
+  return run;
+}
+
+async function csRequest(endpoint, body, apiKey, signal, retriesLeft = 3) {
+  await throttle();
+
   const res = await fetch(`${BASE_URL}${endpoint}`, {
     method: 'POST',
     headers: {
@@ -16,6 +34,11 @@ async function csRequest(endpoint, body, apiKey, signal) {
     body: JSON.stringify(body),
     signal,
   });
+
+  if (res.status === 429 && retriesLeft > 0) {
+    await new Promise(r => setTimeout(r, MIN_GAP_MS));
+    return csRequest(endpoint, body, apiKey, signal, retriesLeft - 1);
+  }
 
   if (!res.ok) {
     const text = await res.text();
