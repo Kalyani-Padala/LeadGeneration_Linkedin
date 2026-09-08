@@ -325,7 +325,7 @@ function LookupSummary({ profileUrl, onCached }) {
       <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block', fontSize: 18, color: 'var(--accent)' }}>◌</span>
       <div style={{ flex: 1 }}>
         <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--accent)', fontWeight: 700 }}>Scraping LinkedIn profile for {name}...</div>
-        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>Takes 2–4 minutes — you can switch tabs and come back</div>
+        <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--text3)', marginTop: 4 }}>This usually takes about a minute — you can switch tabs and come back</div>
       </div>
     </div>
   );

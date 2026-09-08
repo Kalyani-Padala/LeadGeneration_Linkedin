@@ -1,21 +1,23 @@
 /**
  * apify-pipeline.js
- * Runs the 3-actor Apify LinkedIn pipeline:
- *   Actor 1: apt_marble   → basic profile + activity feed
- *   Actor 2: data-slayer  → full profile (experience, education, skills, email)
- *   Actor 3: pratikdani   → full post text for commented/truncated items
+ * Runs a 2-actor Apify LinkedIn pipeline:
+ *   Actor A: harvestapi/linkedin-profile-posts
+ *            → the profile's own posts/shares
+ *   Actor B: scraping_solutions/linkedin-profile-comments-reactions-scraper-no-cookies
+ *            → comments and reactions made BY the profile on others' posts
+ *   Actor 2 (unchanged): data-slayer → full profile (experience, education, skills, email)
  *
- * Brought in from Kalyani-Padala fork commit fa139cc. Replaces the
- * PhantomBuster-based linkedin-summary route. No personal LinkedIn
- * cookie required — all three actors handle their own scraping
- * infrastructure on Apify's side.
+ * Replaces apt_marble, which was returning "status 404" on the free tier
+ * (LinkedIn blocking that actor's proxy/session pool). Both new actors
+ * return full, untruncated text directly, so the old Actor 3 (pratikdani)
+ * enrichment step is no longer needed — nothing here is truncated.
  */
 
 const BASE = 'https://api.apify.com/v2/acts';
 const EP = {
-  apt:    `${BASE}/apt_marble~linkedin-profile-scraper/run-sync-get-dataset-items`,
-  slayer: `${BASE}/data-slayer~linkedin-profile-scraper/run-sync-get-dataset-items`,
-  pratik: `${BASE}/pratikdani~linkedin-posts-scraper/run-sync-get-dataset-items`,
+  posts:    `${BASE}/harvestapi~linkedin-profile-posts/run-sync-get-dataset-items`,
+  activity: `${BASE}/scraping_solutions~linkedin-profile-comments-reactions-scraper-no-cookies/run-sync-get-dataset-items`,
+  slayer:   `${BASE}/data-slayer~linkedin-profile-scraper/run-sync-get-dataset-items`,
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -61,6 +63,8 @@ function needsEnrichment(item) {
   if (!title)                            return true;
   if (isTruncated(title))                return true;
   return false;
+function extractUsername(profileUrl) {
+  return profileUrl.replace(/\/$/, '').split('/').pop();
 }
 
 function verifyProfileMatch(result, expectedUrl) {
@@ -101,27 +105,106 @@ async function callActor(endpoint, payload, apiKey, timeoutMs = 240000) {
   }
 }
 
-// ── Actor 1: apt_marble ────────────────────────────────────────────────
+// ── Actor A: harvestapi own posts ───────────────────────────────────────
 
-async function runAptMarble(profileUrl, apiKey) {
-  console.log('[apify] Actor 1: apt_marble → basic profile + activity...');
-  const data = first(await callActor(EP.apt, { profileUrls: [profileUrl] }, apiKey));
-  if (data) {
-    console.log(`[apify]   ✅ ${data.fullName} | ${(data.recentActivity || []).length} activity items`);
+async function runOwnPosts(profileUrl, apiKey) {
+  console.log('[apify] Actor A: harvestapi/linkedin-profile-posts → own posts...');
+  const t0 = Date.now();
+  try {
+    const raw = await callActor(EP.posts, {
+      targetUrls: [profileUrl],
+      scrapeReactions: false, // reactions/comments ON this post by others — not needed here
+      scrapeComments: false,
+      maxPosts: 25,
+    }, apiKey);
+
+    const posts = Array.isArray(raw) ? raw : [];
+    console.log(`[apify]   ✅ ${posts.length} own posts fetched (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+
+    return posts.map(p => ({
+      interaction_type: 'shared',
+      interaction_raw: 'posted',
+      post_url: p.linkedinUrl || null,
+      post_id: p.id || null,
+      post_text: p.content || null,
+      person_comment: null,
+      post_date: p.postedAt?.date || null,
+      post_likes: p.engagement?.likes ?? null,
+      post_comments: p.engagement?.comments ?? null,
+      post_reposts: p.engagement?.shares ?? null,
+      post_hashtags: null,
+      post_tagged_people: null,
+      post_author_url: profileUrl,
+      post_images: (p.postImages || []).map(img => img.url || img).filter(Boolean),
+      post_embedded_links: null,
+      context_complete: Boolean(p.content),
+      original_post_available: true,
+      _fetch_status: 'not_needed', // full text already present, no enrichment needed
+    }));
+  } catch (err) {
+    console.warn(`[apify]   ⚠️  harvestapi posts failed after ${((Date.now() - t0) / 1000).toFixed(1)}s: ${err.message}`);
   }
-  return data;
 }
 
-// ── Actor 2: data-slayer ───────────────────────────────────────────────
+// ── Actor B: comments + reactions ───────────────────────────────────────
+
+async function runCommentsAndReactions(profileUrl, apiKey) {
+  console.log('[apify] Actor B: comments+reactions scraper...');
+  const username = extractUsername(profileUrl);
+  const t0 = Date.now();
+
+  try {
+    const raw = await callActor(EP.activity, {
+      usernames: [username],
+      type: 'both',
+      maxItemsPerProfile: 100,
+    }, apiKey);
+
+    const rows = Array.isArray(raw) ? raw : [];
+    console.log(`[apify]   ✅ ${rows.length} comment/reaction items fetched  (${((Date.now() - t0) / 1000).toFixed(1)}s)`);
+
+    return rows.map(row => {
+      const isReaction = row.sourceType === 'reaction';
+      return {
+        interaction_type: isReaction ? 'reacted' : 'commented',
+        interaction_raw: row.action || row.sourceType,
+        post_url: row.postUrl || null,
+        post_id: null,
+        post_text: row.postText || (isReaction ? row.content : null) || null,
+        person_comment: isReaction ? null : row.content,
+        post_date: row.eventDate || null,
+        post_likes: row.postTotalReactions ?? null,
+        post_comments: row.postCommentsCount ?? null,
+        post_reposts: row.postRepostsCount ?? null,
+        post_hashtags: null,
+        post_tagged_people: null,
+        post_author_url: row.postAuthorProfileUrl || null,
+        post_author_name: row.postAuthorName || row.actorName || null,
+        post_images: null,
+        post_embedded_links: null,
+        context_complete: Boolean(row.postText || row.content),
+        original_post_available: Boolean(row.postText),
+        _fetch_status: 'not_needed',
+      };
+    });
+  } catch (err) {
+    console.warn(`[apify]   ⚠️  comments+reactions actor failed after ${((Date.now() - t0) / 1000).toFixed(1)}s: ${err.message}`);
+    return [];
+  }
+}
+
+// ── Actor 2 (unchanged): data-slayer ────────────────────────────────────
 
 async function runDataSlayer(profileUrl, apiKey) {
   console.log('[apify] Actor 2: data-slayer → experience, education, skills, email...');
+  const t0 = Date.now();
 
   const raw = await callActor(EP.slayer, { linkedin_urls: [profileUrl], extract_email: true }, apiKey);
   const result = first(raw);
+  const elapsed = ((Date.now() - t0) / 1000).toFixed(1) + 's';
 
   if (!result) {
-    console.warn('[apify]   ⚠️  No data returned from data-slayer');
+    console.warn(`[apify]   ⚠️  No data returned from data-slayer (${elapsed}ms)`);
     return null;
   }
 
@@ -131,12 +214,12 @@ async function runDataSlayer(profileUrl, apiKey) {
       `${(result.experience || []).length} roles | ` +
       `${(result.education  || []).length} edu | ` +
       `${(result.skills     || []).length} skills | ` +
-      `email: ${result.email || 'not found'}`
+      `email: ${result.email || 'not found'} (${elapsed}ms)`
     );
     return result;
   }
 
-  console.warn(`[apify]   ⚠️  Wrong profile returned (${result.full_name}) — skipping data-slayer`);
+  console.warn(`[apify]   ⚠️  Wrong profile returned (${result.full_name}) — skipping data-slayer (${elapsed}ms)`);
   return null;
 }
 
@@ -247,12 +330,8 @@ function buildActivityFeed(enrichedItems) {
 
 // ── Build clean profile record ─────────────────────────────────────────
 
-function buildRecord(profileUrl, apt, slayer, activityFeed) {
-  const g = (slayerKey, aptKey = null) => {
-    const v = (slayer || {})[slayerKey];
-    if (v) return v;
-    return aptKey ? (apt || {})[aptKey] : null;
-  };
+function buildRecord(profileUrl, slayer, activityFeed) {
+  const g = (slayerKey) => (slayer || {})[slayerKey] || null;
 
   const experience = (slayer?.experience || []).map(e => ({
     job_title:        e.job_title || e.raw_job_title,
@@ -278,8 +357,8 @@ function buildRecord(profileUrl, apt, slayer, activityFeed) {
     description:     e.description,
   }));
 
-  const typeCount    = {};
-  let completeCount  = 0;
+  const typeCount   = {};
+  let completeCount = 0;
   for (const a of activityFeed) {
     typeCount[a.interaction_type] = (typeCount[a.interaction_type] || 0) + 1;
     if (a.context_complete) completeCount++;
@@ -289,28 +368,28 @@ function buildRecord(profileUrl, apt, slayer, activityFeed) {
     profileUrl,
     scrapedAt: new Date().toISOString(),
     dataSources: {
-      apt_marble:  apt    != null,
+      harvestapi_posts: activityFeed.some(a => a.interaction_type === 'shared'),
+      comments_reactions: activityFeed.some(a => a.interaction_type === 'commented' || a.interaction_type === 'reacted'),
       data_slayer: slayer != null,
-      pratikdani:  activityFeed.some(a => a._fetch_status === 'success'),
     },
     identity: {
-      fullName:        g('full_name',            'fullName'),
-      firstName:       g('first_name',           'firstName'),
-      lastName:        g('last_name',            'lastName'),
-      headline:        g('profile_headline',     'headline'),
-      location:        g('location',             'city'),
-      country:         g('country',              'countryCode'),
-      currentCompany:  g('current_company_name', 'currentCompany'),
+      fullName:        g('full_name'),
+      firstName:       g('first_name'),
+      lastName:        g('last_name'),
+      headline:        g('profile_headline'),
+      location:        g('location'),
+      country:         g('country'),
+      currentCompany:  g('current_company_name'),
       companyIndustry: g('company_industry'),
       companyWebsite:  g('company_website'),
-      followers:       g('followers',            'followers'),
-      connections:     g('connections',          'connections'),
+      followers:       g('followers'),
+      connections:     g('connections'),
       isPremium:       g('is_premium'),
       isCreator:       g('is_creator'),
       email:           g('email'),
-      profileImage:    g('profile_picture',      'profileImage'),
-      bannerImage:     apt?.bannerImage || null,
-      about:           g('about',                'about'),
+      profileImage:    g('profile_picture'),
+      bannerImage:     null,
+      about:           g('about'),
     },
     career: {
       experience,
@@ -337,13 +416,22 @@ function buildRecord(profileUrl, apt, slayer, activityFeed) {
 
 export async function runApifyPipeline(profileUrl, apiKey) {
   console.log(`[apify] Starting pipeline for ${profileUrl}`);
+  const pipelineStart = Date.now();
 
-  const apt    = await runAptMarble(profileUrl, apiKey);
-  const slayer = await runDataSlayer(profileUrl, apiKey);
+  // Run all three independent calls in parallel — none depend on each other's output.
+  const [ownPosts, activity, slayer] = await Promise.all([
+    runOwnPosts(profileUrl, apiKey),
+    runCommentsAndReactions(profileUrl, apiKey),
+    runDataSlayer(profileUrl, apiKey),
+  ]);
 
-  const rawActivity  = apt?.recentActivity || [];
-  const richActivity = await enrichActivity(rawActivity, apiKey);
-  const activityFeed = buildActivityFeed(richActivity);
+  const activityFeed = [...ownPosts, ...activity].sort((a, b) => {
+    const da = a.post_date ? new Date(a.post_date).getTime() : 0;
+    const db = b.post_date ? new Date(b.post_date).getTime() : 0;
+    return db - da; // newest first
+  });
 
-  return buildRecord(profileUrl, apt, slayer, activityFeed);
+  const record = buildRecord(profileUrl, slayer, activityFeed);
+  console.log(`[apify] ⏱ Pipeline total: ${((Date.now() - pipelineStart) / 1000).toFixed(1)}s`);
+  return record;
 }
