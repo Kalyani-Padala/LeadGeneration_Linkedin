@@ -111,28 +111,6 @@ export default function Settings() {
         </Field>
       </Section>
 
-      {/* PhantomBuster */}
-      <Section icon="🤖" title="PhantomBuster" subtitle="LinkedIn activity + profile scraper" style={{ marginBottom: 24 }}>
-        <Field label="API Key" hint="From PhantomBuster dashboard → Settings → API" required>
-          <PasswordInput value={pbApiKeyInput} onChange={setPbApiKeyInput} show={showPbKey} onToggle={() => setShowPbKey(v => !v)} placeholder="your phantombuster api key" />
-        </Field>
-        <Field label="Activity Scraper Agent ID" hint="From your LinkedIn Activity Extractor phantom URL" required style={{ marginTop: 20 }}>
-          <input type="text" value={pbActivityIdInput} onChange={e => setPbActivityIdInput(e.target.value)} placeholder="e.g. 7513342814441012" style={inputStyle} />
-        </Field>
-        <Field label="Profile Scraper Agent ID" hint="From your LinkedIn Profile Scraper phantom URL" required style={{ marginTop: 20 }}>
-          <input type="text" value={pbProfileIdInput} onChange={e => setPbProfileIdInput(e.target.value)} placeholder="e.g. 1234567890123456" style={inputStyle} />
-        </Field>
-        <Field label="LinkedIn Session Cookie (li_at)" hint="From browser → DevTools → Application → Cookies → linkedin.com → li_at" required style={{ marginTop: 20 }}>
-          <PasswordInput value={pbCookieInput} onChange={setPbCookieInput} show={showPbCookie} onToggle={() => setShowPbCookie(v => !v)} placeholder="your li_at cookie value" />
-        </Field>
-        <div style={{ marginTop: 16, padding: '12px 16px', background: 'rgba(255,185,0,0.08)', border: '1px solid rgba(255,185,0,0.2)', borderRadius: 'var(--radius)', fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text3)', lineHeight: 1.8 }}>
-          <div style={{ color: '#ffb900', fontWeight: 700, marginBottom: 4 }}>⚠ SETUP REQUIRED</div>
-          <div>1. Create a "LinkedIn Activity Extractor" phantom in PhantomBuster</div>
-          <div>2. Create a "LinkedIn Profile Scraper" phantom in PhantomBuster</div>
-          <div>3. Connect your LinkedIn account to both phantoms using your li_at cookie</div>
-          <div>4. Paste the Agent IDs and API key above</div>
-        </div>
-      </Section>
 
       {/* Save */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
