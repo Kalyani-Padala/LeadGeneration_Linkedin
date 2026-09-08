@@ -1,3 +1,4 @@
+//Fixed Zip Codes issues 
 import { Router } from 'express';
 import { runMapsScrape, abortRun } from '../services/apify-maps.js';
 
@@ -161,6 +162,7 @@ mapsRouter.post('/scrape', async (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
   // Register this run so POST /stop can find and abort it.
@@ -176,6 +178,10 @@ mapsRouter.post('/scrape', async (req, res) => {
   });
 
   const allLeads = [];
+
+  const heartbeat = setInterval(() => {
+    if (!res.writableEnded && !res.destroyed) res.write('event: keepalive\ndata: {}\n\n');
+  }, 25000);
 
   try {
     send(res, 'start', { total: searches.length });
@@ -300,6 +306,7 @@ mapsRouter.post('/scrape', async (req, res) => {
   } catch (err) {
     send(res, 'error', { message: err.message });
   } finally {
+    clearInterval(heartbeat);
     completed = true;
     activeRuns.delete(clientRunId);
     res.end();

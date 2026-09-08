@@ -27,6 +27,42 @@ function first(data) {
   return data || null;
 }
 
+function isTruncated(text = '') {
+  const t = text.trim();
+  return t.endsWith('…') || t.endsWith('...');
+}
+
+function classifyInteraction(interaction = '') {
+  const i = interaction.toLowerCase();
+  if (i.includes('shared') || i.includes('posted') || i.includes('published') ||
+      i.includes('reposted'))                                                    return 'shared';
+  if (i.includes('commented'))                                                   return 'commented';
+  if (i.includes('reacted') || i.includes('celebrated') || i.includes('supported') ||
+      i.includes('love') || i.includes('insightful') || i.includes('curious'))  return 'reacted';
+  if (i.includes('liked'))                                                       return 'liked';
+  console.warn(`[apify] Unknown interaction type: "${interaction}"`);
+  return 'reacted';
+}
+
+function resolvePostUrl(link = '') {
+  if (!link) return null;
+  if (link.includes('session_redirect=')) {
+    try {
+      const match = link.match(/session_redirect=([^&]+)/);
+      if (match) return decodeURIComponent(match[1]);
+    } catch { }
+  }
+  if (link.startsWith('/')) return `https://www.linkedin.com${link}`;
+  return link;
+}
+
+function needsEnrichment(item) {
+  const interaction = (item.interaction || '').toLowerCase();
+  const title       = (item.title || '').trim();
+  if (interaction.includes('commented')) return true;
+  if (!title)                            return true;
+  if (isTruncated(title))                return true;
+  return false;
 function extractUsername(profileUrl) {
   return profileUrl.replace(/\/$/, '').split('/').pop();
 }
@@ -185,6 +221,111 @@ async function runDataSlayer(profileUrl, apiKey) {
 
   console.warn(`[apify]   ⚠️  Wrong profile returned (${result.full_name}) — skipping data-slayer (${elapsed}ms)`);
   return null;
+}
+
+// ── Actor 3: pratikdani ────────────────────────────────────────────────
+
+async function fetchPost(postUrl, apiKey) {
+  try {
+    const raw = await callActor(EP.pratik, { url: postUrl }, apiKey, 120000);
+    return first(raw);
+  } catch {
+    return null;
+  }
+}
+
+async function enrichActivity(items, apiKey) {
+  console.log('[apify] Actor 3: pratikdani → enriching incomplete items...');
+
+  const toFetch   = items.map((item, i) => ({ i, item })).filter(({ item }) => needsEnrichment(item));
+  const skipCount = items.length - toFetch.length;
+  console.log(`[apify]   Skipping : ${skipCount} (full text present)`);
+  console.log(`[apify]   Fetching : ${toFetch.length} (commented or truncated)`);
+
+  const enriched = items.map(item => ({ ...item }));
+
+  for (const { i, item } of toFetch) {
+    const url   = resolvePostUrl(item.link);
+    const itype = classifyInteraction(item.interaction || '');
+
+    if (!url) {
+      enriched[i]._fetch_status = 'skipped_no_url';
+      continue;
+    }
+
+    console.log(`[apify]   [${itype}] ${url.substring(0, 70)}...`);
+    const post = await fetchPost(url, apiKey);
+
+    if (post?.post_text) {
+      enriched[i]._fetched_post_text      = post.post_text;
+      enriched[i]._fetched_date           = post.date_posted;
+      enriched[i]._fetched_likes          = post.num_likes;
+      enriched[i]._fetched_comments       = post.num_comments;
+      enriched[i]._fetched_hashtags       = post.hashtags;
+      enriched[i]._fetched_tagged_people  = post.tagged_people;
+      enriched[i]._fetched_author_url     = post.use_url;
+      enriched[i]._fetched_images         = post.images;
+      enriched[i]._fetched_embedded_links = post.embedded_links;
+      enriched[i]._fetch_status           = 'success';
+      console.log(`[apify]     ✅ "${post.post_text.substring(0, 80)}..."`);
+    } else {
+      enriched[i]._fetched_post_text = null;
+      enriched[i]._fetch_status      = 'failed';
+      console.warn(`[apify]     ⚠️  Could not fetch post text`);
+    }
+  }
+
+  return enriched;
+}
+
+// ── Build activity feed ────────────────────────────────────────────────
+
+function buildActivityFeed(enrichedItems) {
+  return enrichedItems.map(item => {
+    const itype       = classifyInteraction(item.interaction || '');
+    const rawTitle    = (item.title || '').trim();
+    const fetchedText = item._fetched_post_text;
+    const fetchStatus = item._fetch_status || 'not_needed';
+
+    let postText, personComment, originalPostAvailable;
+
+    if (itype === 'commented') {
+      personComment        = rawTitle;
+      postText             = fetchedText || null;
+      originalPostAvailable = Boolean(fetchedText);
+    } else {
+      personComment        = null;
+      postText             = fetchedText || rawTitle;
+      originalPostAvailable = true;
+    }
+
+    const contextComplete = (
+      Boolean(postText) &&
+      !isTruncated(postText || '') &&
+      ['success', 'not_needed'].includes(fetchStatus)
+    );
+
+    return {
+      interaction_type:      itype,
+      interaction_raw:       item.interaction,
+      post_url:              resolvePostUrl(item.link),
+      post_id:               item.id,
+      post_image:            item.img,
+      post_text:             postText,
+      person_comment:        personComment,
+      post_date:             item._fetched_date          || null,
+      post_likes:            item._fetched_likes         || null,
+      post_comments:         item._fetched_comments      || null,
+      post_hashtags:         item._fetched_hashtags      || null,
+      post_tagged_people:    item._fetched_tagged_people || null,
+      post_author_url:       item._fetched_author_url    || null,
+      post_images:           item._fetched_images        || null,
+      post_embedded_links:   item._fetched_embedded_links || null,
+      context_complete:      contextComplete,
+      original_post_available: originalPostAvailable,
+      _fetch_status:         fetchStatus,
+    };
+  });
 }
 
 // ── Build clean profile record ─────────────────────────────────────────
