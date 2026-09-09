@@ -52,4 +52,4 @@ jobs:
           app-name: 'leadgen-engine'
           slot-name: 'Production'
           package: .
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_58B28A2B4F214BB3B6FC99912E17A5AF }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_5048165938584B7AB8ED3C421614F02D }}
