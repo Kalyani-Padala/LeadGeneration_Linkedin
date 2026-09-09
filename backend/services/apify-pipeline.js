@@ -63,6 +63,8 @@ function needsEnrichment(item) {
   if (!title)                            return true;
   if (isTruncated(title))                return true;
   return false;
+}
+
 function extractUsername(profileUrl) {
   return profileUrl.replace(/\/$/, '').split('/').pop();
 }
@@ -223,7 +225,10 @@ async function runDataSlayer(profileUrl, apiKey) {
   return null;
 }
 
-// ── Actor 3: pratikdani ────────────────────────────────────────────────
+// ── Actor 3: pratikdani (LEGACY — no longer called from runApifyPipeline) ──
+// Kept for reference only. The new actors (A/B above) return full,
+// untruncated text, so this enrichment pass is unused. EP.pratik does not
+// exist, so calling fetchPost/enrichActivity directly would throw.
 
 async function fetchPost(postUrl, apiKey) {
   try {
