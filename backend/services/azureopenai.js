@@ -26,26 +26,32 @@ export async function screenComments(postContent, comments, signal) {
    Comment: ${c.commentText || c.comment || c.text || 'No comment'}`)
     .join('\n\n');
 
-  const prompt = `You are a B2B sales analyst identifying potential BUYERS of AI solutions from LinkedIn comments.
+    const prompt = `You are a B2B sales analyst identifying potential BUYERS of AI solutions from LinkedIn comments.
 
 POST CONTEXT (what people are commenting on):
 "${postContext}"
 
 THE ONLY QUESTION THAT MATTERS:
-"Does this person have a business problem they need help solving with AI?"
+"Does this person have a SPECIFIC business problem they need help solving with AI?"
 
-If YES → FLAG them
-If NO → DO NOT FLAG
+If YES, with specific detail → FLAG them
+If NO, or too vague/generic → DO NOT FLAG
 
-BUYER signals to look for:
-- Describes a pain point or challenge at their company
-- Asks how something works for their use case
-- Questions about implementation, scale, compliance, security
-- Mentions their team or company is evaluating or planning
-- Failed previous attempt they want to fix
+BUYER signals to look for (comment must show SPECIFIC context, not a generic phrase):
+- Describes a pain point or challenge at their company, with some detail
+- Asks how something works for THEIR specific use case (names their situation)
+- Questions about implementation, scale, compliance, security — with context
+- Mentions their team or company is evaluating or planning something specific
+- Failed previous attempt they want to fix — describes what failed
 - Asks about timeline, cost, or ROI
 - Tags colleagues to look at something
-- Expresses frustration with current tools or processes
+- Expresses frustration with current tools or processes — names the tool/process
+
+REJECT low-effort generic comments even if they sound interested:
+- "Interested in this", "I'm interested in deploying this", "Would love to try this",
+  "This is exactly what we need" — with no company, use case, or problem named
+- Single-line comments with no specific detail are HIDDEN regardless of apparent enthusiasm
+- Generic enthusiasm/agreement without a specific business context is NOT a buyer signal
 
 SELLER signals — DO NOT FLAG:
 - Comment is pitching their own services or product
@@ -54,17 +60,24 @@ SELLER signals — DO NOT FLAG:
 - Sharing their own case studies or client work
 - Freelancer sharing rates or availability
 - Comment contains their own website, portfolio, or contact info
+- Comment gives confident, detailed technical advice/solutions unprompted —
+  this is a practitioner/expert demonstrating knowledge, not a buyer with a
+  need. A real buyer describes THEIR problem; they don't solve someone else's.
 
-ROLE CHECK — only flag if they have decision making power:
-- Founder, CEO, COO, CTO, President at any company
-- VP, Director, Head of, GM, MD at any company
-- Manager or Senior professional at a mid to large company
+ROLE CHECK — title/designation data at this stage is often missing or unreliable.
+Do NOT disqualify someone just because their title is "Unknown" or unclear —
+seniority will be properly verified later with full profile data. Only use
+this check to filter out CLEARLY disqualifying roles when the title IS known:
 
-DO NOT FLAG:
-- Students, freshers, interns
-- Pure developers with no business context
-- LinkedIn influencers and content creators
+DO NOT FLAG (only if designation is clearly stated and matches):
+- Explicitly a student, fresher, or intern
+- Pure individual-contributor developer with a comment that has no business context
+- Clearly a LinkedIn influencer/content creator with no company affiliation
 - Anyone whose comment is clearly pitching services
+
+If designation is "Unknown" or missing, judge PURELY on the comment content
+and the buyer/seller signals above — do not let missing title data cause
+an automatic HIDDEN classification.
 
 Here are the comments:
 ${commentsText}
@@ -143,7 +156,7 @@ Comment: ${comment}
 Round 1 Intent Level: ${intentLevel}
 Round 1 Reason: ${round1Reason}`.trim();
 
-  const prompt = `You are a senior B2B sales analyst making a final qualification decision on a potential buyer lead.
+    const prompt = `You are a senior B2B sales analyst making a final qualification decision on a potential buyer lead.
 
 Based on the full profile and company information below, decide if this person is a QUALIFIED LEAD worth reaching out to for AI solutions, automation tools, or AI consulting services.
 
@@ -151,8 +164,10 @@ A QUALIFIED LEAD must meet MOST of these:
 1. Works at a real company that could genuinely benefit from AI
 2. Has decision making power OR significant influence (not just junior)
 3. Company has at least 5 employees
-4. Their comment shows genuine business need, curiosity, or evaluation intent
-5. They are a BUYER not a SELLER of AI services
+4. Their comment shows genuine business need, curiosity, or evaluation intent — with SPECIFIC context, not generic enthusiasm
+5. They are a BUYER not a SELLER of AI services, AND not a technical
+   practitioner offering their own solution/expertise in the comment, AND
+   their comment shows a SPECIFIC business context — not generic interest
 
 DISQUALIFY only if:
 - Person is clearly a freelancer or solopreneur with no team
@@ -160,19 +175,29 @@ DISQUALIFY only if:
 - Student, intern, or entry level role
 - Company is purely coaching, personal development, or fitness
 - Fake or unclear company context
+- Company's own business IS software, IT services, AI/ML, data science, or
+  technology consulting — these are peers/competitors, not buyers. Target
+  customers are retail and manufacturing companies, not tech companies.
+- Comment is vague/generic interest with no specific company context, use
+  case, or problem described (e.g. "interested in deploying this",
+  "would love to try this") — even if enthusiastic, this alone is not
+  evaluation intent.
+- Comment demonstrates the person giving detailed technical advice/solutions
+  to the post author — this is expert/practitioner behavior, not buyer
+  behavior.
 
 DO NOT disqualify just because:
-- Company is in IT services — they can still buy AI tools
-- Person asks technical questions — they may be evaluating
 - Company size is unknown — give benefit of doubt
-- Role title sounds technical — CTOs and tech leads buy too
+- Role title sounds technical — CTOs and tech leads at RETAIL/MANUFACTURING
+  companies buy too (but the company's core business must not itself be
+  software/IT/AI/consulting — see disqualify rule above)
 
 IMPORTANT — USE POST CONTEXT:
 - First understand what business problem or topic the POST is about
 - Then evaluate whether the COMMENT is directly related to that problem
 - A strong lead shows intent that is relevant to the POST (not generic discussion)
 - Give higher weight if the comment reflects a real challenge, evaluation, or curiosity about the POST topic
-- Ignore comments that are generic agreement, opinions, or thought leadership without business need
+- Ignore comments that are generic agreement, opinions, thought leadership, or unsolicited technical advice without business need
 
 Here is the full profile:
 ${profileSummary}
