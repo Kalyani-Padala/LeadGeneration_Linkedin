@@ -260,13 +260,13 @@ function CompanySidebar({ activeKey, setActiveKey, history, setHistory }) {
 function CompanyMain({ activeKey, setHistory }) {
   const { serperKey, firecrawlKey } = useSettings();
 
-  return (
-  <EmptyState
-    icon="🏢"
-    title="Company Intelligence"
-    body={<>Enter any company name to get a full intelligence report.<br />Includes financials, key people, products, customers,<br />hiring signals, tech stack, and outreach angles.<br /><br />Powered by Serper + Firecrawl + Azure OpenAI.</>}
-  />
-);
+  if (!activeKey) return (
+    <EmptyState
+      icon="🏢"
+      title="Company Intelligence"
+      body={<>Enter any company name to get a full intelligence report.<br />Includes financials, key people, products, customers,<br />hiring signals, tech stack, and outreach angles.<br /><br />Powered by Serper + Firecrawl + Azure OpenAI.</>}
+    />
+  );
 
   return (
     <CompanySummary
