@@ -175,10 +175,7 @@ export function SettingsProvider({ children }) {
     setOutreachRunsState(prev => { const u = prev.filter(r => r.runId !== runId); localStorage.setItem('outreachRuns', JSON.stringify(u)); return u; });
   }
 
-  const isOutreachConfigured = Boolean(
-    apolloKey.trim() && hunterKey.trim() && apifyKey.trim() &&
-    (targetIndustries.length || targetTechnologies.length || targetLocations.trim())
-  );
+  const isOutreachConfigured = true;
 
   function saveSettings(key, id) { setConnectSafelyKey(key); setAccountId(id); }
 
@@ -186,7 +183,7 @@ export function SettingsProvider({ children }) {
     setPipelineLogs(prev => [...prev.slice(-99), { time: new Date().toLocaleTimeString(), msg, type }]);
   }
 
-  const isConfigured = Boolean(connectSafelyKey.trim() && accountId.trim());
+  const isConfigured = true;
 
   return (
     <SettingsContext.Provider value={{

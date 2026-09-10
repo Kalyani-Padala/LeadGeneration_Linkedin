@@ -17,8 +17,8 @@ companySummaryRouter.post('/lookup', async (req, res) => {
   }
 
   // Accept from request body first, fall back to .env
-  const sKey = serperKey    || process.env.SERPER_API_KEY;
-  const fKey = firecrawlKey || process.env.FIRECRAWL_API_KEY;
+ const sKey = serperKey    || process.env.SERPER_KEY;
+ const fKey = firecrawlKey || process.env.FIRECRAWL_KEY;
 
   if (!sKey) return res.status(400).json({ error: 'Serper API key is required — add it in Settings' });
   if (!fKey) return res.status(400).json({ error: 'Firecrawl API key is required — add it in Settings' });

@@ -103,14 +103,14 @@ function setupRun(req, res, clientRunId) {
 // nothing left for AI to do at this stage.
 outreachRouter.post('/discover', async (req, res) => {
   const {
-    apolloKey,
+    apolloKey: frontendApolloKey,
     industries = [],
     technologies = [],
     targetLocations,
     employeeRanges,
     clientRunId,
   } = req.body;
-
+  const apolloKey = frontendApolloKey || process.env.APOLLO_KEY;
   if (!apolloKey) return res.status(400).json({ error: 'Missing apolloKey' });
   if (!clientRunId) return res.status(400).json({ error: 'clientRunId required' });
   if (!industries.length && !technologies.length && !targetLocations?.length) {
@@ -222,8 +222,8 @@ outreachRouter.post('/discover', async (req, res) => {
 
 // ── FLOW 2: Contact Finding ───────────────────────────────────────────
 outreachRouter.post('/enrich', async (req, res) => {
-  const { hunterKey, companies, clientRunId } = req.body;
-
+ const { hunterKey: frontendHunterKey, companies, clientRunId } = req.body;
+  const hunterKey = frontendHunterKey || process.env.HUNTER_KEY;
   if (!hunterKey || !companies?.length) {
     return res.status(400).json({ error: 'Missing hunterKey or companies' });
   }

@@ -227,9 +227,7 @@ function CompanySidebar({ activeKey, setActiveKey, history, setHistory }) {
   function handleLookup(nameOverride) {
     const name = (nameOverride || input).trim();
     setError('');
-    if (!name)         { setError('Enter a company name first.'); return; }
-    if (!serperKey)    { setError('Serper API key not set — go to Settings.'); return; }
-    if (!firecrawlKey) { setError('Firecrawl API key not set — go to Settings.'); return; }
+    if (!name) { setError('Enter a company name first.'); return; }
     setHistory(prev => {
       if (prev.find(h => h.name === name)) return prev;
       return [{ name, cachedAt: companyCacheGet(name) ? Date.now() : null }, ...prev].slice(0, 20);
@@ -262,14 +260,13 @@ function CompanySidebar({ activeKey, setActiveKey, history, setHistory }) {
 function CompanyMain({ activeKey, setHistory }) {
   const { serperKey, firecrawlKey } = useSettings();
 
-  if (!activeKey) return (
-    <EmptyState
-      icon="🏢"
-      title="Company Intelligence"
-      body={<>Enter any company name to get a full intelligence report.<br />Includes financials, key people, products, customers,<br />hiring signals, tech stack, and outreach angles.<br /><br />Powered by Serper + Firecrawl + Azure OpenAI.</>}
-      warning={(!serperKey || !firecrawlKey) && '⚠ Add your Serper and Firecrawl API keys in Settings first'}
-    />
-  );
+  return (
+  <EmptyState
+    icon="🏢"
+    title="Company Intelligence"
+    body={<>Enter any company name to get a full intelligence report.<br />Includes financials, key people, products, customers,<br />hiring signals, tech stack, and outreach angles.<br /><br />Powered by Serper + Firecrawl + Azure OpenAI.</>}
+  />
+);
 
   return (
     <CompanySummary

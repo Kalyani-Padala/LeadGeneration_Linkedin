@@ -130,7 +130,6 @@ export default function Outreach() {
   }
 
   async function runDiscovery() {
-    if (!apolloKey) { addLog('Apollo API key missing — go to Settings', 'error'); return; }
     const inds  = industriesInput.length    ? industriesInput    : targetIndustries;
     const techs = technologiesInput.length  ? technologiesInput  : targetTechnologies;
     if (!inds.length && !techs.length && !(targetLocations || locationsInput)) {
@@ -193,7 +192,6 @@ export default function Outreach() {
   }
 
   async function runEnrichment() {
-    if (!hunterKey) { addLog('Hunter.io key required — go to Settings', 'error'); return; }
     if (!companies.length) { addLog('No companies to enrich — run discovery first', 'error'); return; }
 
     setStatus('enriching');

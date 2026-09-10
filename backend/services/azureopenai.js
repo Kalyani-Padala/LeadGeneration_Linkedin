@@ -1,5 +1,7 @@
 import OpenAI from 'openai';
 
+
+
 function getClient() {
   if (!process.env.AZURE_OPENAI_KEY || !process.env.AZURE_OPENAI_ENDPOINT) {
     throw new Error('Azure OpenAI credentials not configured in .env');
@@ -12,21 +14,30 @@ function getClient() {
   });
 }
 
+function sanitizeText(str) {
+  return (str || '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '') // control chars
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/g, '')        // unpaired high surrogates
+    .replace(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');      // unpaired low surrogates
+}
+
 // Round 1 — exactly matching n8n prompt
 export async function screenComments(postContent, comments, signal) {
+  if (!comments.length) return [];
+
   const client = getClient();
 
-  const postContext = (postContent || 'business technology discussion')
+  const postContext = sanitizeText(postContent || 'business technology discussion')
     .substring(0, 600)
     .replace(/\n/g, ' ');
 
   const commentsText = comments
-    .map((c, idx) => `${idx + 1}. Name: ${c.authorName || c.commenterName || 'Unknown'}
-   Title: ${c.authorDesignation || c.designation || 'Unknown'}
-   Comment: ${c.commentText || c.comment || c.text || 'No comment'}`)
+    .map((c, idx) => `${idx + 1}. Name: ${sanitizeText(c.authorName || c.commenterName || 'Unknown')}
+   Title: ${sanitizeText(c.authorDesignation || c.designation || 'Unknown')}
+   Comment: ${sanitizeText(c.commentText || c.comment || c.text || 'No comment')}`)
     .join('\n\n');
 
-    const prompt = `You are a B2B sales analyst identifying potential BUYERS of AI solutions from LinkedIn comments.
+  const prompt = `You are a B2B sales analyst identifying potential BUYERS of AI solutions from LinkedIn comments.
 
 POST CONTEXT (what people are commenting on):
 "${postContext}"
@@ -94,19 +105,40 @@ Return ONLY a JSON array (no explanation, no markdown):
 ]
 If none qualify return: []`;
 
-  const response = await client.chat.completions.create({
-    model: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4.1-mini',
-    messages: [{ role: 'user', content: prompt }],
-    max_tokens: 800,
-    temperature: 0.2,
-  }, { signal });
-
-  const raw = response.choices[0]?.message?.content || '[]';
-  const clean = raw.replace(/```json|```/g, '').trim();
-
   try {
-    return JSON.parse(clean);
-  } catch {
+    const response = await client.chat.completions.create({
+      model: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-4.1-mini',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 800,
+      temperature: 0.2,
+    }, { signal });
+
+    const raw = response.choices[0]?.message?.content || '[]';
+    const clean = raw.replace(/```json|```/g, '').trim();
+
+    try {
+      return JSON.parse(clean);
+    } catch {
+      return [];
+    }
+  } catch (err) {
+    // If the request itself was rejected (bad JSON body) and this chunk
+    // has more than one comment, split it in half and retry each half
+    // separately — isolates which specific comment is causing the issue
+    // instead of silently dropping the whole chunk.
+    const isBadRequest = err?.status === 400 || /invalid.*json/i.test(err?.message || '');
+    if (isBadRequest && comments.length > 1) {
+      console.warn(`[screenComments] Chunk of ${comments.length} failed (${err.message}) — splitting and retrying`);
+      const mid = Math.ceil(comments.length / 2);
+      const [firstHalf, secondHalf] = [comments.slice(0, mid), comments.slice(mid)];
+      const [r1, r2] = await Promise.all([
+        screenComments(postContent, firstHalf, signal).catch(() => []),
+        screenComments(postContent, secondHalf, signal).catch(() => []),
+      ]);
+      return [...r1, ...r2];
+    }
+    // Single comment still failing, or non-recoverable error — give up on it.
+    console.warn(`[screenComments] Comment(s) permanently failed: ${err.message}`);
     return [];
   }
 }

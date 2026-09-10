@@ -32,10 +32,24 @@ function bailIfCancelled(ctx) {
 }
 
 pipelineRouter.post('/run', async (req, res) => {
-  const { connectSafelyKey, accountId, keywords, pipelineSettings = {}, clientRunId } = req.body;
+  const {
+    connectSafelyKey: frontendKey,
+    accountId: frontendAccountId,
+    keywords,
+    pipelineSettings = {},
+    clientRunId,
+  } = req.body;
 
-  if (!connectSafelyKey || !accountId || !keywords?.length) {
-    return res.status(400).json({ error: 'Missing connectSafelyKey, accountId, or keywords' });
+  const connectSafelyKey = frontendKey || process.env.CONNECTSAFELY_KEY;
+  const accountId = frontendAccountId || process.env.CONNECTSAFELY_ACCOUNT_ID;
+
+  if (!connectSafelyKey || !accountId) {
+    return res.status(400).json({
+      error: 'ConnectSafely API key or Account ID not configured. Please add your credentials in Settings.',
+    });
+  }
+  if (!keywords?.length) {
+    return res.status(400).json({ error: 'Missing keywords' });
   }
   if (!clientRunId) return res.status(400).json({ error: 'clientRunId required' });
 
@@ -335,8 +349,14 @@ pipelineRouter.post('/run', async (req, res) => {
         total: enriched.length,
       });
 
-      try {
+       try {
         const result = await deepQualify(lead, signal);
+
+        const verdict = result.isQualifiedLead ? '✅ QUALIFIED' : '❌ REJECTED';
+        console.log(`[round2] ${verdict} | ${lead.commenterName} | score=${result.confidenceScore} | ${result.reason}`);
+        send(res, 'warning', {
+          message: `${verdict}: ${lead.commenterName} (${result.confidenceScore}/10) — ${result.reason}`,
+        });
 
         if (result.isQualifiedLead && result.confidenceScore >= (pipelineSettings.minScore || 6)) {
           const currentExp = (lead.experience || [])[0] || {};

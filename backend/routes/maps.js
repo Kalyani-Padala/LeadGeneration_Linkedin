@@ -153,8 +153,8 @@ mapsRouter.get('/zipcodes', async (req, res) => {
 // client disconnects, the in-flight Apify run is aborted so we don't
 // burn credits on results no one will see.
 mapsRouter.post('/scrape', async (req, res) => {
-  const { searches, apifyKey, maxResults = 20, clientRunId } = req.body;
-
+ const { searches, apifyKey: frontendApifyKey, maxResults = 20, clientRunId } = req.body;
+ const apifyKey = frontendApifyKey || process.env.APIFY_TOKEN;
   if (!apifyKey) return res.status(400).json({ error: 'Apify API key required' });
   if (!searches?.length) return res.status(400).json({ error: 'No searches provided' });
   if (!clientRunId) return res.status(400).json({ error: 'clientRunId required' });

@@ -90,10 +90,6 @@ function addSearch() {
   }
 
   async function runScrape() {
-    if (!apifyKey) {
-      addLog('Apify API key missing — go to Settings', 'error');
-      return;
-    }
     if (!mapsSearches.length) {
       addLog('No searches configured — add some in CONFIG tab', 'error');
       return;
