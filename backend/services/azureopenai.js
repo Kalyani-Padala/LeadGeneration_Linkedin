@@ -74,6 +74,10 @@ SELLER signals — DO NOT FLAG:
 - Comment gives confident, detailed technical advice/solutions unprompted —
   this is a practitioner/expert demonstrating knowledge, not a buyer with a
   need. A real buyer describes THEIR problem; they don't solve someone else's.
+- Comment references "a customer of ours", "one of our clients", "a client
+  we worked with", or similar vendor-side phrasing describing someone
+  ELSE's problem that they solved — this is a vendor sharing a case study,
+  not a buyer describing their own need, even if phrased casually or briefly.
 
 ROLE CHECK — title/designation data at this stage is often missing or unreliable.
 Do NOT disqualify someone just because their title is "Unknown" or unclear —
@@ -217,6 +221,19 @@ DISQUALIFY only if:
 - Comment demonstrates the person giving detailed technical advice/solutions
   to the post author — this is expert/practitioner behavior, not buyer
   behavior.
+- Comment is written in an abstract, third-person, thought-leadership tone
+  about how things work "in general" or "for organizations" — even if
+  well-informed — rather than describing something that happened to THEIR
+  own company specifically. A real buyer signal uses first-person language
+  about their own situation ("we had...", "our team...", "at my company...").
+  Confident general commentary on frameworks, best practices, or industry
+  patterns is thought leadership, not a buying signal, regardless of how
+  detailed or accurate it is.
+- Comment references "a customer of ours", "one of our clients", or similar
+  vendor-side phrasing describing a problem THEY SOLVED FOR SOMEONE ELSE —
+  this is a vendor/consultant sharing a case study, not a buyer describing
+  their own company's need, regardless of how specific or technical the
+  detail is.
 
 DO NOT disqualify just because:
 - Company size is unknown — give benefit of doubt
